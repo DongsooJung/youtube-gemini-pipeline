@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Ã Gemini Analytics Pipeline</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background:#0f0f1a; color:#e0e0e0; }
+
+.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding:24px 32px; border-bottom:2px solid #e94560; }
+.header h1 { font-size:1.6rem; color:#fff; display:flex; align-items:center; gap:12px; }
+.header h1 span.icon { font-size:1.8rem; }
+.header .subtitle { color:#8892b0; font-size:0.85rem; margin-top:4px; }
+
+.dashboard { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; padding:20px 32px; }
+.full-width { grid-column: 1 / -1; }
+.half-width { grid-column: span 2; }
+
+.card { background:#1a1a2e; border-radius:12px; padding:20px; border:1px solid #2a2a4a; }
+.card h2 { font-size:1rem; color:#e94560; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.card h2 .badge { background:#e94560; color:#fff; font-size:0.65rem; padding:2px 8px; border-radius:10px; }
+
+/* KPI Cards */
+.kpi-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; }
+.kpi { background: linear-gradient(135deg, #16213e, #1a1a2e); border-radius:10px; padding:16px; text-align:center; border:1px solid #2a2a4a; }
+.kpi .value { font-size:1.8rem; font-weight:700; color:#e94560; }
+.kpi .label { font-size:0.75rem; color:#8892b0; margin-top:4px; }
+.kpi .change { font-size:0.7rem; margin-top:4px; }
+.kpi .change.up { color:#4ecca3; }
+.kpi .change.down { color:#e94560; }
+
+/* Table */
+.data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.data-table th { background:#16213e; color:#e94560; padding:10px 8px; text-align:left; font-weight:600; border-bottom:2px solid #e94560; }
+.data-table td { padding:8px; border-bottom:1px solid #2a2a4a; }
+.data-table tr:hover { background:#16213e; }
+.data-table .channel { color:#4ecca3; font-weight:500; }
+.engagement-bar { height:6px; background:#2a2a4a; border-radius:3px; overflow:hidden; }
+.engagement-bar .fill { height:100%; border-radius:3px; background: linear-gradient(90deg, #e94560, #4ecca3); }
+
+/* Gemini Panel */
+.gemini-panel { background: linear-gradient(135deg, #1a1a2e, #0f3460); border:1px solid #4ecca3; }
+.gemini-input { width:100%; background:#0f0f1a; border:1px solid #2a2a4a; border-radius:8px; padding:12px; color:#e0e0e0; font-size:0.85rem; resize:vertical; min-height:80px; }
+.gemini-input:focus { outline:none; border-color:#4ecca3; }
+.btn { padding:10px 20px; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.85rem; transition:all 0.2s; }
+.btn-primary { background:#e94560; color:#fff; }
+.btn-primary:hover { background:#ff6b81; }
+.btn-secondary { background:#4ecca3; color:#0f0f1a; }
+.btn-secondary:hover { background:#6ee6be; }
+.btn-group { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.gemini-output { background:#0f0f1a; border:1px solid #2a2a4a; border-radius:8px; padding:16px; margin-top:12px; min-height:120px; white-space:pre-wrap; font-size:0.82rem; line-height:1.6; display:none; }
+
+/* API Key Input */
+.api-key-section { display:flex; gap:8px; margin-bottom:12px; align-items:center; }
+.api-key-input { flex:1; background:#0f0f1a; border:1px solid #2a2a4a; border-radius:8px; padding:10px; color:#4ecca3; font-family:monospace; font-size:0.8rem; }
+.api-key-input:focus { outline:none; border-color:#e94560; }
+.status-dot { width:10px; height:10px; border-radius:50%; }
+.status-dot.connected { background:#4ecca3; box-shadow:0 0 8px #4ecca3; }
+.status-dot.disconnected { background:#e94560; }
+
+/* Category Tags */
+.tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:600; }
+.tag-music { background:#e9456033; color:#e94560; }
+.tag-gaming { background:#4ecca333; color:#4ecca3; }
+.tag-entertainment { background:#ffd93d33; color:#ffd93d; }
+.tag-education { background:#6c63ff33; color:#6c63ff; }
+.tag-news { background:#ff6b6b33; color:#ff6b6b; }
+
+/* Pipeline Diagram */
+.pipeline { display:flex; align-items:center; justify-content:center; gap:0; padding:16px 0; flex-wrap:wrap; }
+.pipeline-step { background:#16213e; border:1px solid #2a2a4a; border-radius:10px; padding:12px 16px; text-align:center; min-width:120px; }
+.pipeline-step .step-icon { font-size:1.5rem; }
+.pipeline-step .step-label { font-size:0.7rem; color:#8892b0; margin-top:4px; }
+.pipeline-step.active { border-color:#4ecca3; box-shadow:0 0 12px #4ecca322; }
+.pipeline-arrow { color:#4ecca3; font-size:1.2rem; padding:0 8px; }
+
+/* Responsive */
+@media(max-width:900px) {
+  .dashboard { grid-template-columns:1fr; }
+  .half-width, .full-width { grid-column:1; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">ð</span> YouTube Ã Gemini Analytics Pipeline <span style="font-size:0.7rem;color:#4ecca3;font-weight:400;">v2.0</span></h1>
+  <div class="subtitle">ì¤ìê° íêµ­ YouTube í¸ë ë© ë¶ì + Gemini 2.5 Flash AI ì¸ì¬ì´í¸ ìì§ | 2026.04.05 KST</div>
+</div>
+
+<!-- Pipeline Flow -->
+<div class="dashboard">
+  <div class="card full-width">
+    <h2>ð íì´íë¼ì¸ ìí¤íì²</h2>
+    <div class="pipeline">
+      <div class="pipeline-step active"><div class="step-icon">ð¡</div><div class="step-label">YouTube API<br>ë°ì´í° ìì§</div></div>
+      <div class="pipeline-arrow">â</div>
+      <div class="pipeline-step active"><div class="step-icon">ð§¹</div><div class="step-label">ë°ì´í° ì ì <br>ì ì²ë¦¬</div></div>
+      <div class="pipeline-arrow">â</div>
+      <div class="pipeline-step active"><div class="step-icon">ð¤</div><div class="step-label">Gemini 2.5<br>AI ë¶ì</div></div>
+      <div class="pipeline-arrow">â</div>
+      <div class="pipeline-step active"><div class="step-icon">ð</div><div class="step-label">ìê°í<br>ëìë³´ë</div></div>
+      <div class="pipeline-arrow">â</div>
+      <div class="pipeline-step"><div class="step-icon">ð¤</div><div class="step-label">ë¦¬í¬í¸<br>ìë ìì±</div></div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="card full-width">
+    <h2>ð íêµ­ í¸ë ë© KPI <span class="badge">LIVE</span></h2>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="value">24.7M</div>
+        <div class="label">ìµê³  ì¡°íì (BTS 2.0)</div>
+        <div class="change up">â² ìì ì¹´íê³ ë¦¬ ëì£¼</div>
+      </div>
+      <div class="kpi">
+        <div class="value">12.86%</div>
+        <div class="label">ìµê³  ì¢ìì/ì¡°í ë¹ì¨</div>
+        <div class="change up">â² BTS ìëì  ì°¸ì¬ì¨</div>
+      </div>
+      <div class="kpi">
+        <div class="value">50%</div>
+        <div class="label">ìì ì¹´íê³ ë¦¬ ë¹ì¤</div>
+        <div class="change up">â² K-POP í¸ë ë ì§ë°°</div>
+      </div>
+      <div class="kpi">
+        <div class="value">3.17M</div>
+        <div class="label">ìµê³  ì¢ìì ì</div>
+        <div class="change up">â² BTS í¬ë¤ íì</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="card half-width">
+    <h2>ð ì¹´íê³ ë¦¬ë³ ì¡°íì ë¶í¬</h2>
+    <canvas id="categoryChart" height="200"></canvas>
+  </div>
+  <div class="card">
+    <h2>ð¬ ì°¸ì¬ì¨(Engagement) TOP 5</h2>
+    <canvas id="engagementChart" height="280"></canvas>
+  </div>
+
+  <!-- Trending Table -->
+  <div class="card full-width">
+    <h2>ð¥ íêµ­ YouTube í¸ë ë© TOP 20 <span class="badge">2026.04.05</span></h2>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>ì ëª©</th><th>ì±ë</th><th>ì¹´íê³ ë¦¬</th><th>ì¡°íì</th><th>ì¢ìì</th><th>ëê¸</th><th>ì°¸ì¬ì¨</th></tr>
+      </thead>
+      <tbody id="trendingTable"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- AI Education Videos -->
+  <div class="card full-width">
+    <h2>ð AI/êµì¡ ê´ë ¨ ì¸ê¸° ìì <span class="badge">ê²ìê²°ê³¼</span></h2>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>#</th><th>ì ëª©</th><th>ì±ë</th><th>ê²ìì¼</th></tr>
+      </thead>
+      <tbody id="aiTable"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Gemini Analysis Panel -->
+  <div class="card full-width gemini-panel">
+    <h2>ð¤ Gemini AI ë¶ì ìì§ <span class="badge" style="background:#4ecca3;color:#0f0f1a;">INTERACTIVE</span></h2>
+    <div class="api-key-section">
+      <span style="font-size:0.8rem;color:#8892b0;">API Key:</span>
+      <input type="password" class="api-key-input" id="apiKey" placeholder="Gemini API í¤ë¥¼ ìë ¥íì¸ì (AIzaSy...)">
+      <div class="status-dot disconnected" id="statusDot"></div>
+      <button class="btn btn-secondary" onclick="connectAPI()" style="font-size:0.75rem;padding:8px 12px;">ì°ê²°</button>
+    </div>
+    <textarea class="gemini-input" id="geminiPrompt" placeholder="ë¶ì ìì²­ì ìë ¥íì¸ì...&#10;ì: íì¬ í¸ë ë© ë°ì´í°ë¥¼ ê¸°ë°ì¼ë¡ K-POP ë§ì¼í ì ëµì ì ìí´ì¤"></textarea>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="analyzeWithGemini()">ð ë¶ì ì¤í</button>
+      <button class="btn btn-secondary" onclick="quickAnalysis('trend')">ð í¸ë ë ë¶ì</button>
+      <button class="btn btn-secondary" onclick="quickAnalysis('content')">ð¬ ì½íì¸  ì ëµ</button>
+      <button class="btn btn-secondary" onclick="quickAnalysis('engagement')">ð¡ ì°¸ì¬ì¨ ìµì í</button>
+      <button class="btn btn-secondary" onclick="quickAnalysis('competitor')">ð ê²½ì ë¶ì</button>
+      <button class="btn btn-secondary" onclick="quickAnalysis('education')">ð êµì¡ì½íì¸  ê¸°í</button>
+    </div>
+    <div class="gemini-output" id="geminiOutput"></div>
+  </div>
+
+  <!-- Colab Integration Code -->
+  <div class="card full-width">
+    <h2>ð Colab íì´íë¼ì¸ ì½ë <span class="badge">COPY & RUN</span></h2>
+    <pre style="background:#0f0f1a;border:1px solid #2a2a4a;border-radius:8px;padding:16px;overflow-x:auto;font-size:0.78rem;line-height:1.5;color:#4ecca3;">
+<code id="colabCode">## Cell 1: í¨í¤ì§ ì¤ì¹ & API ì¤ì 
+from google.colab import userdata
+from google import genai
+import json
+
+client = genai.Client(api_key=userdata.get('GOOGLE_API_KEY'))
+
+## Cell 2: YouTube ë°ì´í° ìì§ í¨ì
+def fetch_youtube_data(api_key, query="AI", max_results=10):
+    """YouTube Data API v3ë¡ ê²ì"""
+    import requests
+    url = "https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "part": "snippet", "q": query,
+        "type": "video", "maxResults": max_results,
+        "order": "viewCount", "regionCode": "KR",
+        "key": api_key
+    }
+    r = requests.get(url, params=params)
+    return r.json()
+
+## Cell 3: Gemini ë¶ì íì´íë¼ì¸
+def analyze_with_gemini(data, analysis_type="trend"):
+    prompts = {
+        "trend": f"ë¤ì YouTube ë°ì´í°ë¥¼ ë¶ìíì¬ í¸ë ëë¥¼ ìì½íê³  ì¸ì¬ì´í¸ë¥¼ ì ê³µí´ì¤:\n{json.dumps(data, ensure_ascii=False, indent=2)}",
+        "content": f"ë¤ì YouTube ë°ì´í°ë¥¼ ê¸°ë°ì¼ë¡ ì½íì¸  ì ëµì ì ìí´ì¤:\n{json.dumps(data, ensure_ascii=False, indent=2)}",
+        "engagement": f"ë¤ì YouTube ì°¸ì¬ì¨ ë°ì´í°ë¥¼ ë¶ìíê³  ìµì í ë°©ìì ì ìí´ì¤:\n{json.dumps(data, ensure_ascii=False, indent=2)}",
+    }
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=prompts.get(analysis_type, prompts["trend"])
+    )
+    return response.text
+
+## Cell 4: ì¤í
+trending_data = {...}  # ì ëìë³´ëì ë°ì´í° íì©
+result = analyze_with_gemini(trending_data, "trend")
+print(result)</code></pre>
+    <button class="btn btn-primary" onclick="copyCode()" style="margin-top:8px;">ð ì½ë ë³µì¬</button>
+  </div>
+
+</div>
+
+<script>
+// ===== DATA =====
+const trendingData = [
+  {id:"_gyultVTesk",title:"BTS (ë°©íìëë¨) '2.0' Official MV",channel:"HYBE LABELS",cat:"ìì",views:24686056,likes:3174285,comments:212712,ratio:0.1286},
+  {id:"D54StAZFUrc",title:"AKMU - 'ìë¬¸ì ëì' M/V",channel:"AKMU",cat:"ìì",views:2635197,likes:108436,comments:6195,ratio:0.0411},
+  {id:"lh7yT1PF2Y4",title:"T.O.P - 'DESPERADO' MV",channel:"T.O.P",cat:"ìì",views:2039509,likes:213034,comments:16475,ratio:0.1045},
+  {id:"zlllDi3VplY",title:"T1 vs HLE - 2026 LCK",channel:"LCK Global",cat:"ê²ì",views:743907,likes:4900,comments:23,ratio:0.0066},
+  {id:"PYpOJyl3Sbg",title:"HANRORO - GAME OVER",channel:"HANRORO",cat:"ìì",views:463472,likes:6770,comments:118,ratio:0.0146},
+  {id:"_LfCDVQUjEc",title:"ë ëë ì¼ íë íì",channel:"PAKA",cat:"ê²ì",views:278505,likes:2156,comments:309,ratio:0.0077},
+  {id:"eMouvDpiEVU",title:"R.I.L + King's gambit (ZICO, Crush)",channel:"HAON",cat:"ìì",views:278200,likes:4871,comments:0,ratio:0.0175},
+  {id:"Yp9IKCCvV1E",title:"ëë¼ ë¦¬ëì§í´ëì ep.11",channel:"ëë¼100%",cat:"ê²ì",views:258070,likes:5850,comments:106,ratio:0.0227},
+  {id:"hjwlHmlxnak",title:"ë§í¬ íëì½ì´ EP.21",channel:"ë§ìTV",cat:"ê²ì",views:235441,likes:3826,comments:507,ratio:0.0163},
+  {id:"7kCDaxIjZFY",title:"AE - ë°í¨ì ",channel:"Park Hyo Shin",cat:"ìì",views:214946,likes:4030,comments:121,ratio:0.0187},
+  {id:"uK09QeHT2g0",title:"ì¤íì´ëë§¨ ë¸ëëë´ë°ì´ ë¶ì",channel:"ë¬´ë¹ëµí¬",cat:"ìí°",views:207515,likes:3321,comments:343,ratio:0.016},
+  {id:"J3c8r5LFibo",title:"ê³µí¬ì ì°¸ì°¸ì°¸",channel:"ê´´ë¬¼ì¥",cat:"ê²ì",views:205176,likes:1307,comments:159,ratio:0.0064},
+  {id:"76BkWZxVljE",title:"ë©ì´íì¤í ë¦¬ í¡ì´ì",channel:"í¡ì´ì",cat:"ê²ì",views:163373,likes:939,comments:186,ratio:0.0057},
+  {id:"NLgQjzQepaE",title:"í¬ì¼ëª¬ ëª¨ë íì ê¹¨ê¸° #8",channel:"ê·¼ê°ë",cat:"ê²ì",views:161148,likes:2299,comments:303,ratio:0.0143},
+  {id:"wZz73re_ITk",title:"NOW IM YOUNG",channel:"nowimyoung",cat:"ìì",views:159352,likes:2352,comments:0,ratio:0.0148},
+  {id:"RWHRQqDyIYo",title:"T1 vs HLE 2026 LCK",channel:"Untara",cat:"ê²ì",views:125363,likes:1962,comments:233,ratio:0.0157},
+  {id:"YcH2U4HHIDs",title:"HMPH! (feat. SOLE) - PLAVE",channel:"PLAVE",cat:"ìì",views:125282,likes:10746,comments:475,ratio:0.0858},
+  {id:"YeECHqAt4U0",title:"ëì¤ 4ìê°",channel:"íì",cat:"ê²ì",views:123361,likes:3663,comments:554,ratio:0.0297},
+  {id:"s0-m0gHYTjA",title:"New New (Prod. GroovyRoom)",channel:"Tray B",cat:"ìì",views:116995,likes:1836,comments:0,ratio:0.0157},
+  {id:"nMPJznU4c60",title:"Harry Styles - American Girls",channel:"ìëë®¤ì§ì½ë¦¬ì",cat:"ìì",views:62629,likes:1040,comments:71,ratio:0.0166}
+];
+
+const aiData = [
+  {title:"'íêµ­ë ìì¸ ìëë¤' AIê° ëì²´ ëª»í  ì¬ë (ê¹ëì êµì 2ë¶)",channel:"ì§ìì¸ì¬ì´ë",date:"2025.10.12"},
+  {title:"AI 20ë ì°êµ¬í ëê³¼íìê° ì±GPT ì°ë ë² (ì¹´ì´ì¤í¸ ê¹ëì êµì)",channel:"ë¨¸ëì¸ì¬ì´ë",date:"2025.09.08"},
+  {title:"AI ìëì ì´ìë¨ë ì§ì 4ê°ì§ #elonmusk",channel:"ë¼ì´ì§ì¤í ë¦¬",date:"2025.05.14"},
+  {title:"'2022ëì' ìì¸ì´ì '30ë', AIë¡ ìì¸¡ [MBCë´ì¤]",channel:"MBCNEWS",date:"2025.06.21"},
+  {title:"AI í¹ì´ì , 5ë ìì ì¨ë¤ê³ ? (feat. ë°íì ìì¥)",channel:"EBS ì¬ì´ì¸ì¤",date:"2025.03.15"},
+  {title:"'íë° íììì´ì' AIìë ì§ì§ ì­ë (ì´ìì± êµì)",channel:"ì§ìì¸ì¬ì´ë",date:"2025.09.05"},
+  {title:"'ì´ê²'ë§ ìë©´ 24ìê° ì ë´ ë¹ì - ë°íì ìì¥",channel:"MKTV ê¹ë¯¸ê²½TV",date:"2025.03.19"},
+  {title:"2025 best AIí´",channel:"AIí ë¦¬",date:"2025.03.04"},
+  {title:"ìë¬´í¨ì¨ 300% ì¬ë ¤ì£¼ë ëì¸ AIí´ 5ê°ì§",channel:"AIê¹ìë²½",date:"2025.05.11"},
+  {title:"ë©ì§ ì AIì¸ê³ 1ë¶ â ì§ìì ìëíì­ëê¹? [KBS]",channel:"KBS ì¶ì 60ë¶",date:"2026.01.02"},
+  {title:"AI, 20ë ì¼ìë¦¬ë¶í° ì¤ì¸ë¤? (ë°íì ìì¥)",channel:"ë¸ë¬´íì¬ë¨",date:"2025.07.18"},
+  {title:"AI ì´ê³ ìë¤ì´ ì§ê¸ ì°ë í´ 3ê°ì§",channel:"AIê¹ìë²½",date:"2025.06.13"},
+  {title:"AIìë, ë¯¸ëíìê° ì°êµ¬í ë¯¸ë ì§ì | ì¸ë°ì",channel:"ì¸ë°ì ê°ì°",date:"2025.03.17"}
+];
+
+// ===== RENDER TABLES =====
+const tbody1 = document.getElementById('trendingTable');
+trendingData.forEach((v,i) => {
+  const catClass = v.cat==='ìì'?'tag-music':v.cat==='ê²ì'?'tag-gaming':v.cat==='ìí°'?'tag-entertainment':'tag-education';
+  tbody1.innerHTML += `<tr>
+    <td>${i+1}</td>
+    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.title}</td>
+    <td class="channel">${v.channel}</td>
+    <td><span class="tag ${catClass}">${v.cat}</span></td>
+    <td>${(v.views/1e6).toFixed(1)}M</td>
+    <td>${v.likes>=1e6?(v.likes/1e6).toFixed(1)+'M':v.likes>=1e3?(v.likes/1e3).toFixed(1)+'K':v.likes}</td>
+    <td>${v.comments>=1e3?(v.comments/1e3).toFixed(1)+'K':v.comments}</td>
+    <td><div class="engagement-bar"><div class="fill" style="width:${Math.min(v.ratio/0.13*100,100)}%"></div></div><span style="font-size:0.7rem;color:#8892b0;">${(v.ratio*100).toFixed(1)}%</span></td>
+  </tr>`;
+});
+
+const tbody2 = document.getElementById('aiTable');
+aiData.forEach((v,i) => {
+  tbody2.innerHTML += `<tr>
+    <td>${i+1}</td>
+    <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.title}</td>
+    <td class="channel">${v.channel}</td>
+    <td>${v.date}</td>
+  </tr>`;
+});
+
+// ===== CHARTS =====
+const catCounts = {};
+const catViews = {};
+trendingData.forEach(v => {
+  catCounts[v.cat] = (catCounts[v.cat]||0) + 1;
+  catViews[v.cat] = (catViews[v.cat]||0) + v.views;
+});
+
+new Chart(document.getElementById('categoryChart'), {
+  type:'bar',
+  data:{
+    labels:Object.keys(catViews),
+    datasets:[
+      {label:'ì´ ì¡°íì',data:Object.values(catViews).map(v=>v/1e6),backgroundColor:'#e94560',borderRadius:6,yAxisID:'y'},
+      {label:'ìì ì',data:Object.values(catCounts),backgroundColor:'#4ecca3',borderRadius:6,yAxisID:'y1'}
+    ]
+  },
+  options:{
+    responsive:true,
+    plugins:{legend:{labels:{color:'#8892b0'}}},
+    scales:{
+      x:{ticks:{color:'#8892b0'},grid:{color:'#2a2a4a'}},
+      y:{position:'left',ticks:{color:'#e94560',callback:v=>v+'M'},grid:{color:'#2a2a4a'}},
+      y1:{position:'right',ticks:{color:'#4ecca3'},grid:{display:false}}
+    }
+  }
+});
+
+const top5 = [...trendingData].sort((a,b)=>b.ratio-a.ratio).slice(0,5);
+new Chart(document.getElementById('engagementChart'), {
+  type:'horizontalBar'==='horizontalBar'?'bar':'bar',
+  data:{
+    labels:top5.map(v=>v.channel),
+    datasets:[{label:'ì°¸ì¬ì¨ %',data:top5.map(v=>(v.ratio*100).toFixed(2)),backgroundColor:['#e94560','#ff6b81','#4ecca3','#ffd93d','#6c63ff'],borderRadius:6}]
+  },
+  options:{
+    indexAxis:'y',
+    responsive:true,
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#8892b0',callback:v=>v+'%'},grid:{color:'#2a2a4a'}},
+      y:{ticks:{color:'#e0e0e0'},grid:{display:false}}
+    }
+  }
+});
+
+// ===== GEMINI API =====
+let apiKey = '';
+function connectAPI() {
+  apiKey = document.getElementById('apiKey').value;
+  if(apiKey.startsWith('AIza')) {
+    document.getElementById('statusDot').className = 'status-dot connected';
+  }
+}
+
+async function callGemini(prompt) {
+  const output = document.getElementById('geminiOutput');
+  output.style.display = 'block';
+  output.textContent = 'â³ Gemini ë¶ì ì¤...';
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    });
+    const data = await res.json();
+    if(data.candidates && data.candidates[0]) {
+      output.textContent = data.candidates[0].content.parts[0].text;
+    } else {
+      output.textContent = 'â ì¤ë¥: ' + JSON.stringify(data.error || data);
+    }
+  } catch(e) {
+    output.textContent = 'â ì°ê²° ì¤ë¥: ' + e.message;
+  }
+}
+
+function analyzeWithGemini() {
+  const prompt = document.getElementById('geminiPrompt').value;
+  if(!apiKey) { alert('API í¤ë¥¼ ë¨¼ì  ìë ¥íê³  ì°ê²°íì¸ì'); return; }
+  if(!prompt) { alert('ë¶ì ìì²­ì ìë ¥íì¸ì'); return; }
+  callGemini(prompt);
+}
+
+const dataContext = JSON.stringify({trending:trendingData.slice(0,10),ai_education:aiData.slice(0,8)}, null, 0);
+
+function quickAnalysis(type) {
+  if(!apiKey) { alert('API í¤ë¥¼ ë¨¼ì  ìë ¥íê³  ì°ê²°íì¸ì'); return; }
+  const prompts = {
+    trend: `ë¤ìì 2026ë 4ì 5ì¼ íêµ­ YouTube í¸ë ë© ë°ì´í°ìëë¤. ì£¼ì í¸ë ë, ì¹´íê³ ë¦¬ë³ ë¶ì, í¥í ìì¸¡ì íêµ­ì´ë¡ ì ê³µíì¸ì:\n${dataContext}`,
+    content: `ë¤ì YouTube í¸ë ë© ë°ì´í°ë¥¼ ë¶ìíì¬, AI/êµì¡ ë¶ì¼ ì íë¸ í¬ë¦¬ìì´í°ë¥¼ ìí ì½íì¸  ì ëµì íêµ­ì´ë¡ ì ìíì¸ì. ì ëª©, ì¸ë¤ì¼, ìë¡ë íì´ë° í¬í¨:\n${dataContext}`,
+    engagement: `ë¤ì YouTube ë°ì´í°ì ì°¸ì¬ì¨(ì¢ìì/ì¡°íì, ëê¸/ì¡°íì)ì ë¶ìíê³ , ì°¸ì¬ì¨ì ëì´ê¸° ìí êµ¬ì²´ì ì¸ ì ëµì íêµ­ì´ë¡ ì ìíì¸ì:\n${dataContext}`,
+    competitor: `ë¤ì ë°ì´í°ë¥¼ ê¸°ë°ì¼ë¡ AI êµì¡ ì íë¸ ì±ë ê° ê²½ì ë¶ìì ìííì¸ì. ê°ì /ì½ì , ì°¨ë³í í¬ì¸í¸, ê¸°í ìì­ì íêµ­ì´ë¡ ë¶ì:\n${dataContext}`,
+    education: `ë¤ì AI/êµì¡ ê´ë ¨ YouTube ê²ì ê²°ê³¼ë¥¼ ë¶ìíì¸ì. íêµ­ ìì²­ìê° ê°ì¥ ê´ì¬ìë AI êµì¡ ì£¼ì , ì½íì¸  ê°­(ë¶ì¡±í ìì­), ìë¡ì´ ê¸°íë¥¼ íêµ­ì´ë¡ ì ì:\n${dataContext}`
+  };
+  document.getElementById('geminiPrompt').value = prompts[type];
+  callGemini(prompts[type]);
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(document.getElementById('colabCode').textContent);
+  alert('â Colab ì½ëê° í´ë¦½ë³´ëì ë³µì¬ëììµëë¤!');
+}
+</script>
+</body>
+</html>
