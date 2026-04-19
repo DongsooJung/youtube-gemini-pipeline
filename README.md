@@ -1,74 +1,97 @@
-# 📊 YouTube × Gemini Analytics Pipeline v2.0
+# 📺 YouTube × Gemini Analytics Pipeline
 
-> **실시간 한국 YouTube 트렌딩 분석 + Gemini 2.5 Flash AI 인사이트 엔진**
->
-> YouTube Data API에서 한국 트렌딩 영상을 자동 수집하고, Gemini 2.5 Flash를 호출해 카테고리별·참여율별 인사이트를 생성하는 분석 파이프라인.
+> **한국 YouTube 트렌딩 실시간 분석 + Gemini 2.5 Flash AI 인사이트 추출 대시보드**
+> Real-time Korean YouTube trending analytics with Gemini 2.5 Flash AI insights
 
-[![AI](https://img.shields.io/badge/AI-Gemini%202.5%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev/)
-[![YouTube](https://img.shields.io/badge/Data-YouTube%20Data%20API-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://developers.google.com/youtube/v3)
-[![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Pages-181717?style=flat-square&logo=github&logoColor=white)](https://dongsoojung.github.io/youtube-gemini-pipeline/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Live Dashboard](https://img.shields.io/badge/Live-Dashboard-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://dongsoojung.github.io/youtube-gemini-pipeline/)
+[![Gemini](https://img.shields.io/badge/AI-Gemini%202.5%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev/)
+[![YouTube API](https://img.shields.io/badge/API-YouTube%20Data%20v3-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://developers.google.com/youtube/v3)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 ---
 
 ## 🎯 Problem
 
-한국 YouTube 트렌드는 분 단위로 변화하지만, **어떤 콘텐츠가 어떤 참여율을 만들고 있는지**를 구조화된 데이터로 파악하기는 어렵습니다. 단순 조회수 랭킹만으로는 **카테고리별 포지셔닝·참여 품질·시청자 반응**을 읽을 수 없습니다.
+한국 YouTube 트렌딩은 **국내 콘텐츠 시장의 초단위 선행지표**입니다. 하지만:
 
-## ✨ Solution
+- 트렌딩 페이지는 **스냅샷만** 보여줄 뿐, 카테고리·조회수·참여율 분포를 분석하지 못함
+- 크리에이터·마케터·투자자가 **"왜 이 영상이 뜨는가"** 를 알려면 수십 개 영상을 수동 분석해야 함
+- 단순 통계만으로는 **"다음에 뜰 콘텐츠"** 예측 어려움
 
-이 파이프라인은 **수집 → 가공 → 생성형 분석 → 시각화** 4단계를 자동화합니다.
+## 💡 Solution
+
+**2단 파이프라인**으로 데이터 수집부터 AI 인사이트 추출까지 자동화:
 
 ```
-YouTube Data API v3 → 한국 트렌딩 영상 수집
-    ↓
-참여율(좋아요/댓글/조회수) 계산 · 카테고리 집계
-    ↓
-Gemini 2.5 Flash → 카테고리별 인사이트 · TOP 5 engagement 분석
-    ↓
-단일 HTML 대시보드 (Chart.js + 카드 레이아웃)
+┌─────────────────┐       ┌──────────────────┐       ┌─────────────────┐
+│  YouTube API v3 │  ───► │  정량 분석 계층  │  ───► │  Gemini 2.5 AI  │
+│  트렌딩 데이터  │       │  (카테고리/참여) │       │  정성 인사이트  │
+└─────────────────┘       └──────────────────┘       └─────────────────┘
+   상위 50개 영상           차트·분포·TOP 5            "왜 뜨는가" 설명
 ```
 
-## 📊 Dashboard Panels
+## 📊 Dashboard Sections
 
-| 패널 | 내용 |
-|------|------|
-| 🔄 **파이프라인 아키텍처** | 데이터 흐름 다이어그램 (수집→분석→렌더) |
-| 📊 **카테고리별 조회수 분포** | 엔터테인먼트·게임·음악·뉴스·스포츠 등 도넛/바 차트 |
-| 💬 **참여율(Engagement) TOP 5** | 좋아요+댓글 대비 조회수 비율이 높은 상위 5개 |
-| 🤖 **Gemini 인사이트** | 트렌드 요약 · 시청자 반응 패턴 · 카테고리 포지셔닝 |
+| 섹션 | 내용 | 시각화 |
+|------|------|--------|
+| **🔄 파이프라인 아키텍처** | 2단계 데이터 흐름 시각화 | Active step indicator |
+| **📊 카테고리별 조회수 분포** | 음악/교육/엔터 등 카테고리 통계 | Bar chart |
+| **🎬 참여율(Engagement) TOP 5** | (좋아요+댓글)/조회수 비율 상위 | Ranked table |
+| **🤖 Gemini AI 인사이트 패널** | 트렌드 데이터 → 프롬프트 → AI 해석 | Interactive chat UI |
 
 ## 🛠 Tech Stack
 
-- **데이터 수집**: YouTube Data API v3 (`videos.list` - chart=mostPopular, regionCode=KR)
-- **AI 분석**: Gemini 2.5 Flash (빠른 응답 + 한국어 강화)
-- **시각화**: Chart.js 4.x CDN (도넛·바·시계열)
-- **프론트**: Vanilla HTML + CSS (단일 파일, 22KB)
-- **호스팅**: GitHub Pages
+- **Data Collection**: YouTube Data API v3 (`mostPopular` endpoint, `regionCode=KR`)
+- **AI Analysis**: Google Gemini 2.5 Flash (저지연·저비용 모델)
+- **Visualization**: Vanilla JS + Chart.js (외부 프레임워크 없음)
+- **Hosting**: GitHub Pages (정적 배포)
+- **Design**: 다크 그라데이션 `#1a1a2e → #0f3460`, 민트 액센트 `#4ecca3`
 
-## 🚀 Live Demo
+## 🎨 AI Prompt Patterns (프리셋)
 
-**▶ https://dongsoojung.github.io/youtube-gemini-pipeline/**
+대시보드에는 4가지 프리셋 프롬프트가 탑재되어 있어, 데이터 컨텍스트와 함께 Gemini에 전송됩니다:
 
-## 📂 Structure
+1. **Trend Summary** — "지금 뜨는 카테고리 3개와 공통 패턴은?"
+2. **Engagement Deep-dive** — "참여율 상위 5개 영상의 성공 요인은?"
+3. **Content Gap Analysis** — "트렌딩에 부족한 카테고리로 기회는?"
+4. **Creator Strategy** — "내 채널이 트렌드에 올라타려면?"
 
+## 🚀 Quick Start
+
+```bash
+# 1. 리포 클론
+git clone https://github.com/DongsooJung/youtube-gemini-pipeline.git
+cd youtube-gemini-pipeline
+
+# 2. API 키 준비
+#    - YouTube Data API v3 키: https://console.cloud.google.com/apis/library/youtube.googleapis.com
+#    - Gemini API 키: https://ai.google.dev/
+
+# 3. index.html 내 apiKey 변수 수정 후 브라우저에서 열기
+#    (또는 정적 서버)
+python -m http.server 8000
 ```
-youtube-gemini-pipeline/
-└── index.html    # 단일 페이지 대시보드 + 인라인 인사이트
-```
 
-## 🌏 Scope
+## 📅 Roadmap
 
-- **지역**: 한국 (KR) 트렌딩 전용
-- **갱신 주기**: 온디맨드 (수동 재생성) — 향후 GitHub Actions cron 전환 계획
-- **데이터 스냅샷**: 2026.04.05 KST
+- [x] v1.0: YouTube 트렌딩 + 기본 차트
+- [x] v2.0: Gemini 2.5 Flash AI 통합 (2026-04-05)
+- [ ] v2.1: 카테고리 필터 + 시간대별 비교
+- [ ] v2.2: 키워드 워드클라우드 (형태소 분석)
+- [ ] v3.0: 일간 리포트 자동 생성 (Supabase + cron)
+- [ ] v3.1: 한국 Shorts 전용 탭 (Reels/TikTok 대비 분석)
+
+## 🎓 Author
+
+**정동수 (Dongsoo Jung)** — Stargate Corporation CEO
+- AI × 데이터 × 콘텐츠 분석
+- SNU 스마트도시공학 박사 수료 · 공간계량 연구자
+- [GitHub](https://github.com/DongsooJung) · [Portfolio](https://dongsoojung.github.io) · [Company](https://stargate11.com)
 
 ## 📄 License
 
-MIT © 2026 Dongsoo Jung / Stargate Corporation
+MIT License.
 
 ---
 
-<p align="center">
-  <sub>Built with <a href="https://ai.google.dev/">Gemini 2.5 Flash</a> · Part of <a href="https://stargate11.com">Stargate Corp</a> AI experiment portfolio</sub>
-</p>
+> *"Data without context is noise. Context without AI is manual labor. This pipeline is the bridge."*
